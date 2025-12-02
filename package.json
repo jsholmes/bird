@@ -19,7 +19,8 @@
     "graphql:update": "tsx scripts/update-query-ids.ts"
   },
   "dependencies": {
-    "commander": "^12.1.0"
+    "commander": "^12.1.0",
+    "devalue": "^5.1.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
