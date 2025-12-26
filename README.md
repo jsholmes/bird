@@ -67,6 +67,9 @@ Global options:
 
 ## Authentication (GraphQL)
 
+GraphQL mode uses your existing X/Twitter web session (no password prompt). It sends requests to internal
+X endpoints and authenticates via cookies (`auth_token`, `ct0`).
+
 `bird` resolves credentials in this order:
 
 1. CLI flags: `--auth-token`, `--ct0`
@@ -109,7 +112,23 @@ Environment shortcuts:
 
 ## Query IDs (GraphQL)
 
-X rotates GraphQL query IDs frequently. `bird` caches refreshed IDs on disk and retries automatically on 404s.
+X rotates GraphQL “query IDs” frequently. Each GraphQL operation is addressed as:
+
+- `operationName` (e.g. `TweetDetail`, `CreateTweet`)
+- `queryId` (rotating ID baked into X’s web client bundles)
+
+`bird` ships with a baseline mapping in `src/lib/query-ids.json` (copied into `dist/` on build). At runtime,
+it can refresh that mapping by scraping X’s public web client bundles and caching the result on disk.
+
+Runtime cache:
+- Default path: `~/.config/bird/query-ids-cache.json`
+- Override path: `BIRD_QUERY_IDS_CACHE=/path/to/file.json`
+- TTL: 24h (stale cache is still used, but marked “not fresh”)
+
+Auto-recovery:
+- On GraphQL `404` (query ID invalid), `bird` forces a refresh once and retries.
+- For `TweetDetail`/`SearchTimeline`, `bird` also rotates through a small set of known fallback IDs to reduce
+  breakage while refreshing.
 
 Refresh on demand:
 
