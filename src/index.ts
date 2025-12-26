@@ -277,6 +277,9 @@ program
         process.exit(1);
       } catch (error) {
         console.error(`❌ Sweetistics error: ${error instanceof Error ? error.message : String(error)}`);
+        if (error instanceof Error && /(^|\\b)INTERNAL_ERROR(\\b|$)|An unexpected error occurred/.test(error.message)) {
+          console.error('ℹ️ Hint: Sweetistics media upload likely needs Twitter OAuth with `media.write` scope.');
+        }
         process.exit(1);
       }
     }
@@ -401,6 +404,9 @@ program
         process.exit(1);
       } catch (error) {
         console.error(`❌ Sweetistics error: ${error instanceof Error ? error.message : String(error)}`);
+        if (error instanceof Error && /(^|\\b)INTERNAL_ERROR(\\b|$)|An unexpected error occurred/.test(error.message)) {
+          console.error('ℹ️ Hint: Sweetistics media upload likely needs Twitter OAuth with `media.write` scope.');
+        }
         process.exit(1);
       }
     }

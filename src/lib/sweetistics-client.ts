@@ -498,9 +498,12 @@ export class SweetisticsClient {
           : undefined;
       const errorMessage =
         typeof (body as { error?: unknown })?.error === 'string' ? (body as { error: string }).error : undefined;
+      const errorCode =
+        typeof (body as { code?: unknown })?.code === 'string' ? (body as { code: string }).code : undefined;
 
       if (!response.ok || !mediaId) {
-        return { success: false, error: errorMessage ?? `HTTP ${response.status}` };
+        const details = [errorCode, errorMessage].filter(Boolean).join(': ');
+        return { success: false, error: details.length > 0 ? details : `HTTP ${response.status}` };
       }
       return { success: true, mediaId };
     } catch (error) {
