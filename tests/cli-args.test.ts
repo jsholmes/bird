@@ -45,15 +45,8 @@ describe('cli-args', () => {
   });
 
   it('preserves leading options before inferred read command', () => {
-    const result = resolveCliInvocation(['--engine', 'sweetistics', 'https://x.com/user/status/1234567890'], known);
-    expect(result.argv).toEqual([
-      'node',
-      'bird',
-      '--engine',
-      'sweetistics',
-      'read',
-      'https://x.com/user/status/1234567890',
-    ]);
+    const result = resolveCliInvocation(['--plain', 'https://x.com/user/status/1234567890'], known);
+    expect(result.argv).toEqual(['node', 'bird', '--plain', 'read', 'https://x.com/user/status/1234567890']);
   });
 
   it('does not rewrite when a known command is provided', () => {

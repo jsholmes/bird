@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Fetches current Twitter/X GraphQL query IDs from public client bundles and
- * updates src/lib/query-ids.json. Inspired by Sweetistics' extractor.
+ * updates src/lib/query-ids.json.
  */
 
 import fs from 'node:fs/promises';

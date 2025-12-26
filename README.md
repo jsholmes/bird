@@ -1,6 +1,6 @@
 # bird 🐦 — fast X CLI for tweeting, replying, and reading
 
-`bird` is a fast X CLI for tweeting, replying, and reading. It uses either GraphQL cookies or the Sweetistics API.
+`bird` is a fast X CLI for tweeting, replying, and reading via X/Twitter GraphQL (cookie auth).
 
 ## Install
 
@@ -51,14 +51,6 @@ bird query-ids --fresh
 - `bird whoami` — print which Twitter account your cookies belong to.
 - `bird check` — show which credentials are available and where they were sourced from.
 
-## Engines
-
-- `--engine auto` (default) — use GraphQL first; if a Sweetistics API key is available, fall back on errors.
-- `--engine graphql` — use Twitter/X GraphQL with cookies (Chrome/Firefox/env/flags).
-- `--engine sweetistics` — use Sweetistics API key (no browser cookies needed).
-
-Note: fallback to Sweetistics only happens in `--engine auto`. `--engine graphql` is strict (no fallback).
-
 Global options:
 - `--timeout <ms>`: abort requests after the given timeout (milliseconds).
 - `--plain`: stable output (no emoji, no color).
@@ -91,9 +83,7 @@ Example `~/.config/bird/config.json5`:
 
 ```json5
 {
-  engine: "auto",
   firefoxProfile: "default-release",
-  sweetisticsApiKey: "sweet-...",
   allowFirefox: true,
   allowChrome: false,
   timeoutMs: 20000
@@ -101,8 +91,7 @@ Example `~/.config/bird/config.json5`:
 ```
 
 Environment shortcuts:
-- `SWEETISTICS_API_KEY`, `SWEETISTICS_BASE_URL`
-- `BIRD_ENGINE`, `BIRD_TIMEOUT_MS`
+- `BIRD_TIMEOUT_MS`
 
 ## Output
 
@@ -143,19 +132,18 @@ Exit codes:
 
 ## Version
 
-`bird --version` prints `package.json` version plus current git sha when available, e.g. `0.2.0 (3df7969b)`.
+`bird --version` prints `package.json` version plus current git sha when available, e.g. `0.3.0 (3df7969b)`.
 
 ## Media uploads
 
 - Attach media with `--media` (repeatable) and optional `--alt` per item.
 - Up to 4 images/GIFs, or 1 video (no mixing). Supported: jpg, jpeg, png, webp, gif, mp4, mov.
-- `--engine graphql`: images/GIFs + 1 video supported (uploads via Twitter legacy upload endpoint + cookies; video may take longer to process).
-- `--engine sweetistics`: images + video supported (requires `SWEETISTICS_API_KEY`).
+- Images/GIFs + 1 video supported (uploads via Twitter legacy upload endpoint + cookies; video may take longer to process).
 
 Example:
 
 ```bash
-bird --engine sweetistics tweet "hi" --media img.png --alt "desc"
+bird tweet "hi" --media img.png --alt "desc"
 ```
 
 ## Development

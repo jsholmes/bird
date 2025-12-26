@@ -1,6 +1,9 @@
 # Changelog
 
-## 0.2.1 — Unreleased
+## 0.3.0 — Unreleased
+
+### Changed
+- Removed the Sweetistics engine + fallback. `bird` is GraphQL-only.
 
 ## 0.2.0 — 2025-12-26
 
