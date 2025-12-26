@@ -181,11 +181,15 @@ type GraphqlTweetResult = {
   };
 };
 
-export interface TweetResult {
-  success: boolean;
-  tweetId?: string;
-  error?: string;
-}
+export type TweetResult =
+  | {
+      success: true;
+      tweetId: string;
+    }
+  | {
+      success: false;
+      error: string;
+    };
 
 export interface UploadMediaResult {
   success: boolean;
