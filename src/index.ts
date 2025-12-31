@@ -150,6 +150,8 @@ const KNOWN_COMMANDS = new Set([
   'search',
   'mentions',
   'bookmarks',
+  'following',
+  'followers',
   'help',
   'whoami',
   'check',
@@ -737,6 +739,132 @@ program
       printTweets(result.tweets, { json: cmdOpts.json, emptyMessage: 'No bookmarks found.' });
     } else {
       console.error(`${p('err')}Failed to fetch bookmarks: ${result.error}`);
+      process.exit(1);
+    }
+  });
+
+// Following command - get users that a user follows
+program
+  .command('following')
+  .description('Get users that you (or another user) follow')
+  .option('--user <userId>', 'User ID to get following for (defaults to current user)')
+  .option('-n, --count <number>', 'Number of users to fetch', '20')
+  .option('--json', 'Output as JSON')
+  .action(async (cmdOpts: { user?: string; count?: string; json?: boolean }) => {
+    const opts = program.opts();
+    const timeoutMs = resolveTimeoutFromOptions(opts);
+    const count = Number.parseInt(cmdOpts.count || '20', 10);
+
+    const { cookies, warnings } = await resolveCredentialsFromOptions(opts);
+
+    for (const warning of warnings) {
+      console.error(`${p('warn')}${warning}`);
+    }
+
+    if (!cookies.authToken || !cookies.ct0) {
+      console.error(`${p('err')}Missing required credentials`);
+      process.exit(1);
+    }
+
+    const client = new TwitterClient({ cookies, timeoutMs });
+
+    // Get user ID - either from option or current user
+    let userId = cmdOpts.user;
+    if (!userId) {
+      const currentUser = await client.getCurrentUser();
+      if (!currentUser.success || !currentUser.user?.id) {
+        console.error(`${p('err')}Failed to get current user: ${currentUser.error || 'Unknown error'}`);
+        process.exit(1);
+      }
+      userId = currentUser.user.id;
+    }
+
+    const result = await client.getFollowing(userId, count);
+
+    if (result.success && result.users) {
+      if (cmdOpts.json) {
+        console.log(JSON.stringify(result.users, null, 2));
+      } else {
+        if (result.users.length === 0) {
+          console.log('No users found.');
+        } else {
+          for (const user of result.users) {
+            console.log(`@${user.username} (${user.name})`);
+            if (user.description) {
+              console.log(`  ${user.description.slice(0, 100)}${user.description.length > 100 ? '...' : ''}`);
+            }
+            if (user.followers_count !== undefined) {
+              console.log(`  ${p('info')}${user.followers_count.toLocaleString()} followers`);
+            }
+            console.log('──────────────────────────────────────────────────');
+          }
+        }
+      }
+    } else {
+      console.error(`${p('err')}Failed to fetch following: ${result.error}`);
+      process.exit(1);
+    }
+  });
+
+// Followers command - get users that follow a user
+program
+  .command('followers')
+  .description('Get users that follow you (or another user)')
+  .option('--user <userId>', 'User ID to get followers for (defaults to current user)')
+  .option('-n, --count <number>', 'Number of users to fetch', '20')
+  .option('--json', 'Output as JSON')
+  .action(async (cmdOpts: { user?: string; count?: string; json?: boolean }) => {
+    const opts = program.opts();
+    const timeoutMs = resolveTimeoutFromOptions(opts);
+    const count = Number.parseInt(cmdOpts.count || '20', 10);
+
+    const { cookies, warnings } = await resolveCredentialsFromOptions(opts);
+
+    for (const warning of warnings) {
+      console.error(`${p('warn')}${warning}`);
+    }
+
+    if (!cookies.authToken || !cookies.ct0) {
+      console.error(`${p('err')}Missing required credentials`);
+      process.exit(1);
+    }
+
+    const client = new TwitterClient({ cookies, timeoutMs });
+
+    // Get user ID - either from option or current user
+    let userId = cmdOpts.user;
+    if (!userId) {
+      const currentUser = await client.getCurrentUser();
+      if (!currentUser.success || !currentUser.user?.id) {
+        console.error(`${p('err')}Failed to get current user: ${currentUser.error || 'Unknown error'}`);
+        process.exit(1);
+      }
+      userId = currentUser.user.id;
+    }
+
+    const result = await client.getFollowers(userId, count);
+
+    if (result.success && result.users) {
+      if (cmdOpts.json) {
+        console.log(JSON.stringify(result.users, null, 2));
+      } else {
+        if (result.users.length === 0) {
+          console.log('No users found.');
+        } else {
+          for (const user of result.users) {
+            console.log(`@${user.username} (${user.name})`);
+            if (user.description) {
+              console.log(`  ${user.description.slice(0, 100)}${user.description.length > 100 ? '...' : ''}`);
+            }
+            if (user.followers_count !== undefined) {
+              console.log(`  ${p('info')}${user.followers_count.toLocaleString()} followers`);
+            }
+            console.log('──────────────────────────────────────────────────');
+          }
+        }
+      }
+    } else {
+      console.error(`${p('err')}Failed to fetch followers: ${result.error}`);
       process.exit(1);
     }
   });
