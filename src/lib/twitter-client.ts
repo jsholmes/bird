@@ -924,6 +924,30 @@ export class TwitterClient {
     return tweets;
   }
 
+  private extractCursorFromInstructions(
+    instructions:
+      | Array<{
+          entries?: Array<{
+            content?: {
+              cursorType?: string;
+              value?: string;
+            };
+          }>;
+        }>
+      | undefined,
+    cursorType = 'Bottom',
+  ): string | undefined {
+    for (const instruction of instructions ?? []) {
+      for (const entry of instruction.entries ?? []) {
+        const content = entry.content;
+        if (content?.cursorType === cursorType && typeof content.value === 'string' && content.value.length > 0) {
+          return content.value;
+        }
+      }
+    }
+    return undefined;
+  }
+
   private buildArticleFeatures(): Record<string, boolean> {
     return {
       rweb_video_screen_enabled: true,
@@ -1650,25 +1674,30 @@ export class TwitterClient {
    * Search for tweets matching a query
    */
   async search(query: string, count = 20): Promise<SearchResult> {
-    const variables = {
-      rawQuery: query,
-      count,
-      querySource: 'typed_query',
-      product: 'Latest',
-    };
-
     const features = this.buildSearchFeatures();
+    const pageSize = 20;
+    const seen = new Set<string>();
+    const tweets: TweetData[] = [];
+    let cursor: string | undefined;
 
-    const params = new URLSearchParams({
-      variables: JSON.stringify(variables),
-    });
-
-    const tryOnce = async () => {
+    const fetchPage = async (pageCount: number, pageCursor?: string) => {
       let lastError: string | undefined;
       let had404 = false;
       const queryIds = await this.getSearchTimelineQueryIds();
 
       for (const queryId of queryIds) {
+        const variables = {
+          rawQuery: query,
+          count: pageCount,
+          querySource: 'typed_query',
+          product: 'Latest',
+          ...(pageCursor ? { cursor: pageCursor } : {}),
+        };
+
+        const params = new URLSearchParams({
+          variables: JSON.stringify(variables),
+        });
+
         const url = `${TWITTER_API_BASE}/${queryId}/SearchTimeline?${params.toString()}`;
 
         try {
@@ -1737,9 +1766,10 @@ export class TwitterClient {
           }
 
           const instructions = data.data?.search_by_raw_query?.search_timeline?.timeline?.instructions;
-          const tweets = this.parseTweetsFromInstructions(instructions);
+          const pageTweets = this.parseTweetsFromInstructions(instructions);
+          const nextCursor = this.extractCursorFromInstructions(instructions);
 
-          return { success: true as const, tweets, had404 };
+          return { success: true as const, tweets: pageTweets, cursor: nextCursor, had404 };
         } catch (error) {
           lastError = error instanceof Error ? error.message : String(error);
         }
@@ -1748,21 +1778,47 @@ export class TwitterClient {
       return { success: false as const, error: lastError ?? 'Unknown error fetching search results', had404 };
     };
 
-    const firstAttempt = await tryOnce();
-    if (firstAttempt.success) {
-      return { success: true, tweets: firstAttempt.tweets };
-    }
-
-    if (firstAttempt.had404) {
-      await this.refreshQueryIds();
-      const secondAttempt = await tryOnce();
-      if (secondAttempt.success) {
-        return { success: true, tweets: secondAttempt.tweets };
+    const fetchWithRefresh = async (pageCount: number, pageCursor?: string) => {
+      const firstAttempt = await fetchPage(pageCount, pageCursor);
+      if (firstAttempt.success) {
+        return firstAttempt;
       }
-      return { success: false, error: secondAttempt.error };
+      if (firstAttempt.had404) {
+        await this.refreshQueryIds();
+        const secondAttempt = await fetchPage(pageCount, pageCursor);
+        if (secondAttempt.success) {
+          return secondAttempt;
+        }
+        return { success: false as const, error: secondAttempt.error };
+      }
+      return { success: false as const, error: firstAttempt.error };
+    };
+
+    while (tweets.length < count) {
+      const pageCount = Math.min(pageSize, count - tweets.length);
+      const page = await fetchWithRefresh(pageCount, cursor);
+      if (!page.success) {
+        return { success: false, error: page.error };
+      }
+
+      for (const tweet of page.tweets) {
+        if (seen.has(tweet.id)) {
+          continue;
+        }
+        seen.add(tweet.id);
+        tweets.push(tweet);
+        if (tweets.length >= count) {
+          break;
+        }
+      }
+
+      if (!page.cursor || page.cursor === cursor || page.tweets.length === 0) {
+        break;
+      }
+      cursor = page.cursor;
     }
 
-    return { success: false, error: firstAttempt.error };
+    return { success: true, tweets };
   }
 
   /**

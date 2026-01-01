@@ -1167,6 +1167,81 @@ describe('TwitterClient', () => {
       expect(result.error).toContain('Unknown error fetching search results');
       expect(mockFetch).not.toHaveBeenCalled();
     });
+
+    it('paginates search results using the bottom cursor', async () => {
+      const makeSearchEntry = (id: string, text: string) => ({
+        content: {
+          itemContent: {
+            tweet_results: {
+              result: {
+                rest_id: id,
+                legacy: {
+                  full_text: text,
+                  created_at: '2024-01-01T00:00:00Z',
+                  reply_count: 0,
+                  retweet_count: 0,
+                  favorite_count: 0,
+                  conversation_id_str: id,
+                },
+                core: {
+                  user_results: {
+                    result: { legacy: { screen_name: 'root', name: 'Root' } },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+
+      const makeResponse = (ids: string[], cursor?: string) => ({
+        data: {
+          search_by_raw_query: {
+            search_timeline: {
+              timeline: {
+                instructions: [
+                  {
+                    entries: [
+                      ...ids.map((id) => makeSearchEntry(id, `tweet-${id}`)),
+                      ...(cursor ? [{ content: { cursorType: 'Bottom', value: cursor } }] : []),
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        },
+      });
+
+      mockFetch
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => makeResponse(['1', '2'], 'cursor-1'),
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          json: async () => makeResponse(['2', '3']),
+        });
+
+      const client = new TwitterClient({ cookies: validCookies });
+      const result = await client.search('needle', 3);
+
+      expect(result.success).toBe(true);
+      expect(result.tweets?.map((tweet) => tweet.id)).toEqual(['1', '2', '3']);
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+
+      const firstVars = JSON.parse(
+        new URL(mockFetch.mock.calls[0][0] as string).searchParams.get('variables') as string,
+      ) as { cursor?: string };
+      const secondVars = JSON.parse(
+        new URL(mockFetch.mock.calls[1][0] as string).searchParams.get('variables') as string,
+      ) as { cursor?: string };
+
+      expect(firstVars.cursor).toBeUndefined();
+      expect(secondVars.cursor).toBe('cursor-1');
+    });
   });
 
   describe('bookmarks', () => {
