@@ -81,28 +81,33 @@ export function withTimelines<TBase extends AbstractConstructor<TwitterClientBas
         return { success: false, error: userResult.error ?? 'Could not determine current user' };
       }
 
-      const variables = {
-        userId: userResult.user.id,
-        count,
-        includePromotedContent: false,
-        withClientEventToken: false,
-        withBirdwatchNotes: false,
-        withVoice: true,
-      };
-
+      const userId = userResult.user.id;
+      const pageSize = 20;
+      const seen = new Set<string>();
+      const tweets: TweetData[] = [];
+      let cursor: string | undefined;
       const features = buildLikesFeatures();
 
-      const params = new URLSearchParams({
-        variables: JSON.stringify(variables),
-        features: JSON.stringify(features),
-      });
-
-      const tryOnce = async () => {
+      const fetchPage = async (pageCount: number, pageCursor?: string) => {
         let lastError: string | undefined;
         let had404 = false;
         const queryIds = await this.getLikesQueryIds();
 
         for (const queryId of queryIds) {
+          const variables = {
+            userId,
+            count: pageCount,
+            includePromotedContent: false,
+            withClientEventToken: false,
+            withBirdwatchNotes: false,
+            withVoice: true,
+            ...(pageCursor ? { cursor: pageCursor } : {}),
+          };
+
+          const params = new URLSearchParams({
+            variables: JSON.stringify(variables),
+            features: JSON.stringify(features),
+          });
           const url = `${TWITTER_API_BASE}/${queryId}/Likes?${params.toString()}`;
 
           try {
@@ -147,14 +152,21 @@ export function withTimelines<TBase extends AbstractConstructor<TwitterClientBas
               errors?: Array<{ message: string }>;
             };
 
-            if (data.errors && data.errors.length > 0) {
-              return { success: false as const, error: data.errors.map((e) => e.message).join(', '), had404 };
-            }
-
             const instructions = data.data?.user?.result?.timeline?.timeline?.instructions;
-            const tweets = parseTweetsFromInstructions(instructions, { quoteDepth: this.quoteDepth, includeRaw });
+            if (data.errors && data.errors.length > 0) {
+              const message = data.errors.map((e) => e.message).join(', ');
+              if (!instructions) {
+                if (message.includes('Query: Unspecified')) {
+                  lastError = message;
+                  continue;
+                }
+                return { success: false as const, error: message, had404 };
+              }
+            }
+            const pageTweets = parseTweetsFromInstructions(instructions, { quoteDepth: this.quoteDepth, includeRaw });
+            const nextCursor = extractCursorFromInstructions(instructions);
 
-            return { success: true as const, tweets, had404 };
+            return { success: true as const, tweets: pageTweets, cursor: nextCursor, had404 };
           } catch (error) {
             lastError = error instanceof Error ? error.message : String(error);
           }
@@ -163,21 +175,52 @@ export function withTimelines<TBase extends AbstractConstructor<TwitterClientBas
         return { success: false as const, error: lastError ?? 'Unknown error fetching likes', had404 };
       };
 
-      const firstAttempt = await tryOnce();
-      if (firstAttempt.success) {
-        return { success: true, tweets: firstAttempt.tweets };
-      }
-
-      if (firstAttempt.had404) {
-        await this.refreshQueryIds();
-        const secondAttempt = await tryOnce();
-        if (secondAttempt.success) {
-          return { success: true, tweets: secondAttempt.tweets };
+      const fetchWithRefresh = async (pageCount: number, pageCursor?: string) => {
+        const firstAttempt = await fetchPage(pageCount, pageCursor);
+        if (firstAttempt.success) {
+          return firstAttempt;
         }
-        return { success: false, error: secondAttempt.error };
+        const shouldRefresh =
+          firstAttempt.had404 ||
+          (typeof firstAttempt.error === 'string' && firstAttempt.error.includes('Query: Unspecified'));
+        if (shouldRefresh) {
+          await this.refreshQueryIds();
+          const secondAttempt = await fetchPage(pageCount, pageCursor);
+          if (secondAttempt.success) {
+            return secondAttempt;
+          }
+          return { success: false as const, error: secondAttempt.error };
+        }
+        return { success: false as const, error: firstAttempt.error };
+      };
+
+      while (tweets.length < count) {
+        const pageCount = Math.min(pageSize, count - tweets.length);
+        const page = await fetchWithRefresh(pageCount, cursor);
+        if (!page.success) {
+          return { success: false, error: page.error };
+        }
+
+        let added = 0;
+        for (const tweet of page.tweets) {
+          if (seen.has(tweet.id)) {
+            continue;
+          }
+          seen.add(tweet.id);
+          tweets.push(tweet);
+          added += 1;
+          if (tweets.length >= count) {
+            break;
+          }
+        }
+
+        if (!page.cursor || page.cursor === cursor || page.tweets.length === 0 || added === 0) {
+          break;
+        }
+        cursor = page.cursor;
       }
 
-      return { success: false, error: firstAttempt.error };
+      return { success: true, tweets };
     }
 
     /**
@@ -329,19 +372,21 @@ export function withTimelines<TBase extends AbstractConstructor<TwitterClientBas
         }
         pagesFetched += 1;
 
+        let added = 0;
         for (const tweet of page.tweets) {
           if (seen.has(tweet.id)) {
             continue;
           }
           seen.add(tweet.id);
           tweets.push(tweet);
+          added += 1;
           if (!unlimited && tweets.length >= limit) {
             break;
           }
         }
 
         const pageCursor = page.cursor;
-        if (!pageCursor || pageCursor === cursor || page.tweets.length === 0) {
+        if (!pageCursor || pageCursor === cursor || page.tweets.length === 0 || added === 0) {
           nextCursor = undefined;
           break;
         }
@@ -510,19 +555,21 @@ export function withTimelines<TBase extends AbstractConstructor<TwitterClientBas
         }
         pagesFetched += 1;
 
+        let added = 0;
         for (const tweet of page.tweets) {
           if (seen.has(tweet.id)) {
             continue;
           }
           seen.add(tweet.id);
           tweets.push(tweet);
+          added += 1;
           if (!unlimited && tweets.length >= limit) {
             break;
           }
         }
 
         const pageCursor = page.cursor;
-        if (!pageCursor || pageCursor === cursor || page.tweets.length === 0) {
+        if (!pageCursor || pageCursor === cursor || page.tweets.length === 0 || added === 0) {
           nextCursor = undefined;
           break;
         }

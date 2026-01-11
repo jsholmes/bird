@@ -4,6 +4,7 @@
 
 ### Fixed
 - macOS cookie extraction now supports Brave keychain storage (#40) — thanks @gakonst.
+- Likes pagination now follows cursors and avoids stalling on duplicate pages (#12) — thanks @titouv.
 
 ## 0.6.0 — 2026-01-05
 

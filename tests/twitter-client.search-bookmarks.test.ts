@@ -691,6 +691,120 @@ describe('TwitterClient bookmarks', () => {
     expect(vars.cursor).toBe('cursor-1');
   });
 
+  it('stops paginating when a page only returns duplicates', async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            bookmark_timeline_v2: {
+              timeline: {
+                instructions: [
+                  {
+                    entries: [
+                      {
+                        content: {
+                          itemContent: {
+                            tweet_results: {
+                              result: {
+                                rest_id: '1',
+                                legacy: {
+                                  full_text: 'saved page 1',
+                                  created_at: '2024-01-01T00:00:00Z',
+                                  reply_count: 0,
+                                  retweet_count: 0,
+                                  favorite_count: 0,
+                                  conversation_id_str: '1',
+                                },
+                                core: {
+                                  user_results: {
+                                    result: {
+                                      rest_id: 'u1',
+                                      legacy: { screen_name: 'root', name: 'Root' },
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                      {
+                        content: {
+                          cursorType: 'Bottom',
+                          value: 'cursor-1',
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: {
+            bookmark_timeline_v2: {
+              timeline: {
+                instructions: [
+                  {
+                    entries: [
+                      {
+                        content: {
+                          itemContent: {
+                            tweet_results: {
+                              result: {
+                                rest_id: '1',
+                                legacy: {
+                                  full_text: 'saved page 2 duplicate',
+                                  created_at: '2024-01-02T00:00:00Z',
+                                  reply_count: 0,
+                                  retweet_count: 0,
+                                  favorite_count: 0,
+                                  conversation_id_str: '1',
+                                },
+                                core: {
+                                  user_results: {
+                                    result: {
+                                      rest_id: 'u1',
+                                      legacy: { screen_name: 'root', name: 'Root' },
+                                    },
+                                  },
+                                },
+                              },
+                            },
+                          },
+                        },
+                      },
+                      {
+                        content: {
+                          cursorType: 'Bottom',
+                          value: 'cursor-2',
+                        },
+                      },
+                    ],
+                  },
+                ],
+              },
+            },
+          },
+        }),
+      });
+
+    const client = new TwitterClient({ cookies: validCookies });
+    const result = await client.getAllBookmarks();
+
+    expect(result.success).toBe(true);
+    expect(result.tweets?.map((tweet) => tweet.id)).toEqual(['1']);
+    expect(result.nextCursor).toBeUndefined();
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
   it('treats graphql errors as non-fatal when instructions are present', async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
