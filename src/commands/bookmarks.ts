@@ -74,11 +74,7 @@ export function registerBookmarksCommand(program: Command, ctx: CliContext): voi
         if (result.success && result.tweets) {
           const emptyMessage = folderId ? 'No bookmarks found in folder.' : 'No bookmarks found.';
           const isJson = cmdOpts.json || cmdOpts.jsonFull;
-          if (isJson && usePagination) {
-            console.log(JSON.stringify({ tweets: result.tweets, nextCursor: result.nextCursor ?? null }, null, 2));
-          } else {
-            ctx.printTweets(result.tweets, { json: isJson, emptyMessage });
-          }
+          ctx.printTweetsResult(result, { json: isJson, usePagination, emptyMessage });
         } else {
           console.error(`${ctx.p('err')}Failed to fetch bookmarks: ${result.error}`);
           process.exit(1);

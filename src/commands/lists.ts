@@ -139,11 +139,11 @@ export function registerListsCommand(program: Command, ctx: CliContext): void {
 
         if (result.success && result.tweets) {
           const isJson = cmdOpts.json || cmdOpts.jsonFull;
-          if (isJson && usePagination) {
-            console.log(JSON.stringify({ tweets: result.tweets, nextCursor: result.nextCursor ?? null }, null, 2));
-          } else {
-            ctx.printTweets(result.tweets, { json: isJson, emptyMessage: 'No tweets found in this list.' });
-          }
+          ctx.printTweetsResult(result, {
+            json: isJson,
+            usePagination,
+            emptyMessage: 'No tweets found in this list.',
+          });
         } else {
           console.error(`${ctx.p('err')}Failed to fetch list timeline: ${result.error}`);
           process.exit(1);

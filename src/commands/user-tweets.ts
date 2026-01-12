@@ -115,15 +115,11 @@ export function registerUserTweetsCommand(program: Command, ctx: CliContext): vo
 
         if (result.success && result.tweets) {
           const isJson = cmdOpts.json || cmdOpts.jsonFull;
-          if (isJson && wantsPaginationOutput) {
-            // Include nextCursor for pagination consumers
-            console.log(JSON.stringify({ tweets: result.tweets, nextCursor: result.nextCursor ?? null }, null, 2));
-          } else {
-            ctx.printTweets(result.tweets, {
-              json: isJson,
-              emptyMessage: `No tweets found for @${username}.`,
-            });
-          }
+          ctx.printTweetsResult(result, {
+            json: isJson,
+            usePagination: wantsPaginationOutput,
+            emptyMessage: `No tweets found for @${username}.`,
+          });
 
           // Show pagination hint if there's more
           if (result.nextCursor && !cmdOpts.json && !cmdOpts.jsonFull) {

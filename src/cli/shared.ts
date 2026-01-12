@@ -51,6 +51,17 @@ export type CliContext = {
   resolveCredentialsFromOptions: (opts: CredentialsOptions) => ReturnType<typeof resolveCredentials>;
   loadMedia: (opts: { media: string[]; alts: string[] }) => MediaSpec[];
   printTweets: (tweets: TweetData[], opts?: { json?: boolean; emptyMessage?: string; showSeparator?: boolean }) => void;
+  printTweetsResult: (
+    result: {
+      tweets?: TweetData[];
+      nextCursor?: string;
+    },
+    opts: {
+      json: boolean;
+      usePagination: boolean;
+      emptyMessage: string;
+    },
+  ) => void;
   extractTweetId: (tweetIdOrUrl: string) => string;
 };
 
@@ -389,6 +400,18 @@ export function createCliContext(normalizedArgs: string[], env: NodeJS.ProcessEn
     }
   }
 
+  function printTweetsResult(
+    result: { tweets?: TweetData[]; nextCursor?: string },
+    opts: { json: boolean; usePagination: boolean; emptyMessage: string },
+  ) {
+    const tweets = result.tweets ?? [];
+    if (opts.json && opts.usePagination) {
+      console.log(JSON.stringify({ tweets, nextCursor: result.nextCursor ?? null }, null, 2));
+      return;
+    }
+    printTweets(tweets, { json: opts.json, emptyMessage: opts.emptyMessage });
+  }
+
   return {
     isTty,
     getOutput: () => output,
@@ -402,6 +425,7 @@ export function createCliContext(normalizedArgs: string[], env: NodeJS.ProcessEn
     resolveCredentialsFromOptions,
     loadMedia,
     printTweets,
+    printTweetsResult,
     extractTweetId,
   };
 }
